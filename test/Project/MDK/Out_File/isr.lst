@@ -1,0 +1,263 @@
+C251 COMPILER V5.60.0,  isr                                                                10/04/23  08:48:14  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE isr
+OBJECT MODULE PLACED IN .\Out_File\isr.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\USER\src\isr.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Librar
+                    -ies\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) DE
+                    -BUG PRINT(.\Out_File\isr.lst) TABS(2) OBJECT(.\Out_File\isr.obj) 
+
+stmt  level    source
+
+    1          ///******************************************************************************************************
+             -***************
+    2          // * COPYRIGHT NOTICE
+    3          // * Copyright (c) 2020,逐飞科技
+    4          // * All rights reserved.
+    5          // * 技术讨论QQ群：一群：179029047(已满)  二群：244861897(已满)  三群：824575535
+    6          // *
+    7          // * 以下所有内容版权均属逐飞科技所有，未经允许不得用于商业用途，
+    8          // * 欢迎各位使用并传播本程序，修改内容时必须保留逐飞科技的版权声明。
+    9          // *
+   10          // * @file          isr
+   11          // * @company       成都逐飞科技有限公司
+   12          // * @author        逐飞科技(QQ790875685)
+   13          // * @version       查看doc内version文件 版本说明
+   14          // * @Software      MDK FOR C251 V5.60
+   15          // * @Target core   STC16F40K128
+   16          // * @Taobao        https://seekfree.taobao.com/
+   17          // * @date          2020-4-14
+   18          // ******************************************************************************************************
+             -**************/
+   19          #include "headfile.h"
+   20          
+   21          //UART1中断
+   22          void UART1_Isr() interrupt 4
+   23          {
+   24   1          uint8 res;
+   25   1        static uint8 dwon_count;
+   26   1          if(UART1_GET_TX_FLAG)
+   27   1          {
+   28   2              UART1_CLEAR_TX_FLAG;
+   29   2              busy[1] = 0;
+   30   2          }
+   31   1          if(UART1_GET_RX_FLAG)
+   32   1          {
+   33   2              UART1_CLEAR_RX_FLAG;
+   34   2              res = SBUF;
+   35   2              //程序自动下载
+   36   2              if(res == 0x7F)
+   37   2              {
+   38   3                  if(dwon_count++ > 20)
+   39   3                      IAP_CONTR = 0x60;
+   40   3              }
+   41   2              else
+   42   2              {
+   43   3                  dwon_count = 0;
+   44   3              }
+   45   2          }
+   46   1      }
+   47          
+   48          //UART2中断
+   49          void UART2_Isr() interrupt 8
+   50          {
+   51   1          if(UART2_GET_TX_FLAG)
+   52   1        {
+   53   2              UART2_CLEAR_TX_FLAG;
+   54   2          busy[2] = 0;
+   55   2        }
+C251 COMPILER V5.60.0,  isr                                                                10/04/23  08:48:14  PAGE 2   
+
+   56   1          if(UART2_GET_RX_FLAG)
+   57   1        {
+   58   2              UART2_CLEAR_RX_FLAG;
+   59   2          //接收数据寄存器为：S2BUF
+   60   2      
+   61   2        }
+   62   1      }
+   63          
+   64          
+   65          //UART3中断
+   66          void UART3_Isr() interrupt 17
+   67          {
+   68   1          if(UART3_GET_TX_FLAG)
+   69   1        {
+   70   2              UART3_CLEAR_TX_FLAG;
+   71   2          busy[3] = 0;
+   72   2        }
+   73   1          if(UART3_GET_RX_FLAG)
+   74   1        {
+   75   2              UART3_CLEAR_RX_FLAG;
+   76   2          //接收数据寄存器为：S3BUF
+   77   2      
+   78   2        }
+   79   1      }
+   80          
+   81          
+   82          //UART4中断
+   83          void UART4_Isr() interrupt 18
+   84          {
+   85   1          if(UART4_GET_TX_FLAG)
+   86   1        {
+   87   2              UART4_CLEAR_TX_FLAG;
+   88   2          busy[4] = 0;
+   89   2        }
+   90   1          if(UART4_GET_RX_FLAG)
+   91   1        {
+   92   2              UART4_CLEAR_RX_FLAG;
+   93   2          //接收数据寄存器为：S4BUF;
+   94   2          
+   95   2          wireless_uart_callback();//无线转串口回调函数
+   96   2        }
+   97   1      }
+   98          
+   99          #define LED P52
+  100          void INT0_Isr() interrupt 0
+  101          {
+  102   1        LED = 0;  //点亮LED
+  103   1        if(T_ALready>40)//发车两秒后开始识别
+  104   1        INT_Flag = 1;//干簧管外部中断触发
+  105   1        INT0_CLEAR_FLAG;  //清除中断标志
+  106   1      }
+  107          void INT1_Isr() interrupt 2
+  108          {
+  109   1      
+  110   1      }
+  111          void INT2_Isr() interrupt 10
+  112          {
+  113   1        INT2_CLEAR_FLAG;  //清除中断标志
+  114   1      }
+  115          
+  116          //干簧管停车检测使用这个中断
+  117          void INT3_Isr() interrupt 11
+  118          {
+  119   1        if(T_ALready>40)//发车两秒后开始识别
+  120   1        INT_Flag = 1;//干簧管外部中断触发
+  121   1        INT3_CLEAR_FLAG;  //清除中断标志
+C251 COMPILER V5.60.0,  isr                                                                10/04/23  08:48:14  PAGE 3   
+
+  122   1        
+  123   1      }
+  124          
+  125          void INT4_Isr() interrupt 16
+  126          {
+  127   1        INT4_CLEAR_FLAG;  //清除中断标志
+  128   1      }
+  129          
+  130          void TM0_Isr() interrupt 1
+  131          {
+  132   1      
+  133   1      }
+  134          void TM1_Isr() interrupt 3
+  135          {
+  136   1         ///----------------------------------------------------------
+  137   1          static uint8 t_5ms = 0;
+  138   1          static uint8 t_10ms = 0;
+  139   1          static uint8 t_50ms = 0;
+  140   1          static uint8 t_1s = 0;
+  141   1      /*************************中断执行程序********2ms进一次中断***************/
+  142   1            t_5ms++;
+  143   1            t_10ms++;           
+  144   1            t_50ms++; 
+  145   1            t_1s++;
+  146   1             
+  147   1      //5ms控制周期
+  148   1            if(t_5ms == 1)      
+  149   1            {
+  150   2              t_5ms = 0;
+  151   2              Flag.T_Inmost=1;
+  152   2            }        
+  153   1      //10ms控制     
+  154   1            if (t_10ms == 2)     
+  155   1            {
+  156   2              t_10ms = 0;
+  157   2              Flag.T_Turn=1;
+  158   2            }
+  159   1      
+  160   1      //50ms控制      
+  161   1            if (t_50ms == 10)   
+  162   1            {
+  163   2              t_50ms = 0;
+  164   2              Flag.T_Speed=1;
+  165   2              speed_measure();//速度采集 
+  166   2              if(T_ALready<600000)//小于10分钟，防止变量溢出，实际根本不可能跑10分钟的！
+  167   2              T_ALready++;//全程计时用的      
+  168   2            }
+  169   1      //1s控制
+  170   1            if(t_1s==200)
+  171   1            {
+  172   2              t_1s = 0;
+  173   2              P42=~P42;
+  174   2            }
+  175   1      //********************************************************** 
+  176   1              Fuse_result();
+  177   1      
+  178   1      }
+  179          void TM2_Isr() interrupt 12
+  180          {
+  181   1        TIM2_CLEAR_FLAG;  //清除中断标志
+  182   1        
+  183   1      }
+  184          void TM3_Isr() interrupt 19
+  185          {
+  186   1        TIM3_CLEAR_FLAG; //清除中断标志
+  187   1        
+C251 COMPILER V5.60.0,  isr                                                                10/04/23  08:48:14  PAGE 4   
+
+  188   1      }
+  189          
+  190          void TM4_Isr() interrupt 20
+  191          {
+  192   1        TIM4_CLEAR_FLAG; //清除中断标志
+  193   1      //  ccd_collect();   //CCD采集数据
+  194   1      
+  195   1      }
+  196          
+  197          //void  INT0_Isr()  interrupt 0;
+  198          //void  TM0_Isr()   interrupt 1;
+  199          //void  INT1_Isr()  interrupt 2;
+  200          //void  TM1_Isr()   interrupt 3;
+  201          //void  UART1_Isr() interrupt 4;
+  202          //void  ADC_Isr()   interrupt 5;
+  203          //void  LVD_Isr()   interrupt 6;
+  204          //void  PCA_Isr()   interrupt 7;
+  205          //void  UART2_Isr() interrupt 8;
+  206          //void  SPI_Isr()   interrupt 9;
+  207          //void  INT2_Isr()  interrupt 10;
+  208          //void  INT3_Isr()  interrupt 11;
+  209          //void  TM2_Isr()   interrupt 12;
+  210          //void  INT4_Isr()  interrupt 16;
+  211          //void  UART3_Isr() interrupt 17;
+  212          //void  UART4_Isr() interrupt 18;
+  213          //void  TM3_Isr()   interrupt 19;
+  214          //void  TM4_Isr()   interrupt 20;
+  215          //void  CMP_Isr()   interrupt 21;
+  216          //void  I2C_Isr()   interrupt 24;
+  217          //void  USB_Isr()   interrupt 25;
+  218          //void  PWM1_Isr()  interrupt 26;
+  219          //void  PWM2_Isr()  interrupt 27;
+*** WARNING C182 IN LINE 32 OF ..\USER\src\isr.c: 'F14x16': unknown size, assumed to be 'extern'
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       517     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =         5     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        20     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,284 @@
+C251 COMPILER V5.60.0,  speed                                                              10/04/23  08:48:15  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE speed
+OBJECT MODULE PLACED IN .\Out_File\speed.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\CODE\speed.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Librarie
+                    -s\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) DEBU
+                    -G PRINT(.\Out_File\speed.lst) TABS(2) OBJECT(.\Out_File\speed.obj) 
+
+stmt  level    source
+
+    1          #include "headfile.h"
+    2          #include  "speed.h"
+    3          
+    4          /***********ËÙ¶È¸÷±äÁ¿ÉùÃ÷**************/
+    5          int16  aim_speed,Set_Speed ;         //Ä¿±êËÙ¶È 
+    6          
+    7          int16 real_speed;        //ÊµÊ±ËÙ¶È
+    8          int16 Speed_Min;
+    9          
+   10          int16 right_speed;       //ÓÒÂÖËÙ¶È
+   11          int16 left_speed;        //×óÂÖËÙ¶È
+   12          int16 last_speed;        //ÉÏÒ»´ÎËÙ¶È
+   13          int16 Last_right_speed;//ÓÒÂÖÉÏ´ÎËÙ¶È
+   14          int16 Last_left_speed;//×óÂÖÉÏ´ÎËÙ¶È
+   15          int32 distance=0;          //³µ×ÓÐÐ×ßµÄÂ·³Ì
+   16          
+   17          
+   18          int16 Speed_PWM=0;         //ËÙ¶È»·PWM
+   19          int16 All_PWM_left=0;     //×óÂÖPWM
+   20          int16 All_PWM_right=0;    //ÓÒÂÖPWM
+   21          
+   22          
+   23              
+   24          /*****************±àÂëÆ÷³õÊ¼»¯*****************
+   25          º¯Êý£ºvoid encoder_init(void)
+   26          ¹¦ÄÜ£º±àÂëÆ÷³õÊ¼»¯
+   27          ²ÎÊý£º  ÎÞ
+   28          ËµÃ÷£ºctimer_count_init(CTIM0_P34);
+   29                ±àÂëÆ÷Ê¹ÓÃTIM3ºÍTIM4£¬Èç¸ü¸ÄÒý½ÅÖ»ÐèÐÞ¸Äºê¶¨Òå¼´¿É 
+   30                ±àÂëÆ÷Ê¹ÓÃ´ø·½ÏòµÄ±àÂëÆ÷£¨ºÃÏñ²»Ö§³ÖÕý½»½âÂë£©
+   31          ·µ»ØÖµ£º
+   32          ÈÕÆÚ£º 2021-3-25Íí00:59
+   33          ÐÞ¸ÄÈÕÆÚ£º2021-3-26
+   34          ×÷Õß£º  »ì×Ó    */
+   35          void encoder_init(void)
+   36          {
+   37   1         ctimer_count_init(Left_Ecoder_Pin1);//³õÊ¼»¯×ó±àÂëÆ÷Íâ²¿¶¨Ê±Æ÷
+   38   1         Left_Ecoder_Pin2=1; //³õÊ¼»¯×ó±àÂëÆ÷µÄ·½ÏòÒý½Å
+   39   1         ctimer_count_init(Right_Ecoder_Pin1);//³õÊ¼»¯ÓÒ±àÂëÆ÷Íâ²¿¶¨Ê±Æ÷
+   40   1         Right_Ecoder_Pin2=1;//³õÊ¼»¯ÓÒ±àÂëÆ÷µÄ·½ÏòÒý½Å
+   41   1      }    
+   42          /*****************ËÙ¶È²âÁ¿*****************
+   43          º¯Êý£ºvoid speed_measure(void)
+   44          ¹¦ÄÜ£º²âÁ¿ÊµÊ±ËÙ¶È£¬Á½¸öÂÖµÄÆ½¾ùËÙ¶È ±àÂëÆ÷²É¼¯Öµ£¬
+   45          ²ÎÊý£º  ÎÞ
+   46          ËµÃ÷£º  ¸Ãº¯Êý¿ÉÒÔ²â³öËÙ¶È£¬»ñÈ¡ËÙ¶ÈºóÎÞÐèÔÙ´Î¸´Î»ÇåÁã£¬ÒÑ°üÀ¨ÁË
+   47          ·µ»ØÖµ£º
+   48          ÈÕÆÚ£º 2021-1-12-20:30
+   49          ÐÞ¸ÄÈÕÆÚ£º2021-1-12-20:30
+   50          ×÷Õß£º »ì×Ó    */
+   51          void speed_measure(void)
+   52          { 
+   53   1      ////////////////////////ÓÒÂÖ²âËÙ//////////Right//////
+   54   1                              left_speed = ctimer_count_read(Right_Ecoder_Pin1);
+   55   1                           ctimer_count_clean(Right_Ecoder_Pin1); 
+   56   1      
+   57   1                        
+C251 COMPILER V5.60.0,  speed                                                              10/04/23  08:48:15  PAGE 2   
+
+   58   1        
+   59   1      //////////////////// ×óÂÖ²âËÙ/////////Left///////////////
+   60   1                             right_speed = ctimer_count_read(Left_Ecoder_Pin1);
+   61   1                          ctimer_count_clean(Left_Ecoder_Pin1); 
+   62   1                          
+   63   1      //////////////////////´ø·½Ïò±àÂëÆ÷Ê¹ÓÃÏÂÃæ¶ÁÈ¡·½Ïò/////////////////
+   64   1                          if ( 1==Left_Ecoder_Pin2)
+   65   1                            left_speed = -left_speed;
+   66   1                          else    left_speed = left_speed;
+*** WARNING C138 IN LINE 66 OF ..\CODE\speed.c: expression with possibly no effect
+   67   1                          if ( 1==Right_Ecoder_Pin2)
+   68   1                            right_speed = -right_speed;
+   69   1                          else    right_speed = right_speed;
+*** WARNING C138 IN LINE 69 OF ..\CODE\speed.c: expression with possibly no effect
+   70   1                            
+   71   1                
+   72   1      
+   73   1      
+   74   1           real_speed = (right_speed+left_speed)/2;        // ËÙ¶ÈÆ½¾ùÖµ
+   75   1         //  Speed_Min = last_speed;
+   76   1             ///  Speed_Min = range_protect(Speed_Min, -500, 500);
+   77   1         // real_speed = limit(real_speed,2000); //ÏÞ·ù±£»¤   
+   78   1           last_speed=real_speed; 
+   79   1                     
+   80   1          distance +=(right_speed+left_speed)*0.01;    //²â¾àÀë  »¯ÎªÀåÃ×Îªµ¥Î»         
+   81   1      }           
+   82          
+   83          /*********************ËÙ¶ÈPI********************
+   84          ½ö¹©²Î¿¼£¬Ã»ÓÐÊ¹ÓÃµ½
+   85          **************************************/
+   86          
+   87          static float SpeedErrorInteg = 0;       //Æ«²î»ý·Ö 
+   88          float I_Calculate=0;//»ý·ÖI¼ÆËãÖµ
+   89          float P_Calculate=0;//±ÈÀýP¼ÆËãÖµ
+   90          static int8 separate=1;    //»ý·Ö·ÖÀëÏµÊý
+   91          float Speed_P_I_Control(float *PID, int16 speed, int16 set_speed)//ÒòÎª½Ç¶È±ä»¯Ð¡£¬ÐèÒªÊÇ¸¡µãÐÍ
+   92          {   
+   93   1          float  SpeedControlOut;//×îÖÕ¼ÆËãÁ¿
+   94   1          int16 SpeedError; // µ±Ç°Îó²î
+   95   1         
+   96   1          static uint8 k;
+   97   1          static float PreError[10]={0};   
+   98   1          SpeedError = set_speed - speed;  //¼ÆËãËÙ¶ÈÆ«²î
+   99   1          SpeedErrorInteg=0;          //Îó²î»ý·Ö
+  100   1          for(k=9;k>0;k--)          //20´ÎÎó²î£¨--±È++¿ì£©
+  101   1          {  
+  102   2           PreError[k]=PreError[k-1];
+  103   2           SpeedErrorInteg+=PreError[k];
+  104   2          }
+  105   1           PreError[0]=SpeedError;
+  106   1           SpeedErrorInteg+=PreError[0]; //»ý·ÖÏî
+  107   1          
+  108   1           I_Calculate = separate * PID[KI] * SpeedErrorInteg;  //»ý·ÖI¼ÆËãÖµ
+  109   1        
+  110   1           P_Calculate=PID[KP]*SpeedError;//±ÈÀýP¼ÆËãÖµ
+  111   1          
+  112   1          /////////////////////
+  113   1           if(SpeedError<0)//³¬ËÙ£¬
+  114   1           {
+  115   2              SpeedControlOut=0;
+  116   2             /// SpeedControlOut=-5;
+  117   2             
+  118   2           }
+  119   1           else
+  120   1           {
+  121   2            SpeedControlOut = P_Calculate+I_Calculate;  // ×îÖÕÊä³ö 
+C251 COMPILER V5.60.0,  speed                                                              10/04/23  08:48:15  PAGE 3   
+
+  122   2           }
+  123   1          
+  124   1          ///////////////////////
+  125   1                                
+  126   1                
+  127   1           return   SpeedControlOut;
+  128   1           }
+  129          
+  130          /******************** µç»ú³õÊ¼»¯***************
+  131          º¯Êý£ºvoid init_PWM(void)
+  132          ²ÎÊý£º  ÎÞ
+  133          ËµÃ÷£º  ·ÖÄ¸10000
+  134                  pwm_init(PWMA_CH1P_P60, 10000, 0);     //³õÊ¼»¯PWM5  Ê¹ÓÃÒý½ÅP2.5  Êä³öPWMÆµÂÊ10000HZ   Õ¼¿Õ±ÈÎª°Ù·
+             -ÖÖ® pwm_duty / PWM_DUTY_MAX * 100
+  135          ·µ»ØÖµ£ºÎÞ
+  136          ÈÕÆÚ£º2021-5-27-Íí23:00
+  137          ÐÞ¸ÄÈÕÆÚ£º2021-5-27-Íí23:00
+  138          ×÷Õß£º »ì×Ó    */
+  139          unsigned char MOTOR_MODE=0;//ÇëÎðÐÞ¸ÄÉ¾³ý
+  140          void init_PWM(unsigned char Motor_Set)
+  141          {
+  142   1        MOTOR_MODE = Motor_Set;
+  143   1        if (MOTOR_MODE==0) 
+  144   1        {
+  145   2      //-----MOSÇý¶¯-----------
+  146   2        pwm_init(Left_Z_Pin, 17000,0);//×óÂÖ³õÊ¼»¯
+  147   2        pwm_init(Left_F_Pin, 17000,0);
+  148   2        pwm_init(Right_Z_Pin, 17000,0);//ÓÒÂÖ³õÊ¼»¯
+  149   2        pwm_init(Right_F_Pin, 17000,0);
+  150   2        }
+  151   1          else
+  152   1        {
+  153   2      //------DRVÇý¶¯-------------
+  154   2        pwm_init(Left_PWM_Pin, 17000,0);//×óÂÖ³õÊ¼»¯
+  155   2        gpio_mode(Left_DIR_Pin,GPO_PP);       // ÉèÖÃDRV·½ÏòÒý½ÅÎªÎªÍÆÍìÊä³ö
+  156   2        pwm_init(Right_PWM_Pin, 17000,0);//ÓÒÂÖ³õÊ¼»¯
+  157   2        gpio_mode(Right_DIR_Pin,GPO_PP);       // ÉèÖÃDRV·½ÏòÒý½ÅÎªÎªÍÆÍìÊä³ö
+  158   2      
+  159   2        }
+  160   1       
+  161   1      }
+  162          /****************************µç»úÊä³ö**********************
+  163          º¯Êý£ºvoid go_motor (int16 left_PWM,int16 right_PWM)
+  164          ²ÎÊý£º  int16 left_PWM,int16 right_PWM
+  165          ËµÃ÷£ºpwm_duty(PWMA_CH1P_P60, duty);
+  166                Îñ±Ø½«³µ×ÓµÄµç»úÂß¼­µ÷ÏñÕâ¸öÒ»Ñù£¬µÚÒ»¸ö²ÎÊý¿ØÖÆ×óµç»ú£¬µÚ¶þ¸ö²ÎÊý¿ØÖÆÓÒµç»ú
+  167                ´«ÈëµÄ²ÎÊýÈç¹ûÎªÕýÊý£¬µç»úÕý×ª£¬¸ºÖµ·´×ª£¡£¡£¡£¡£¡
+  168          ·µ»ØÖµ£ºÎÞ
+  169          ÈÕÆÚ£º2021-5-27-Íí23:00
+  170          ÐÞ¸ÄÈÕÆÚ£º2021-5-27-Íí23:00
+  171          ×÷Õß£º »ì×Ó    */
+  172          #define Duty_Max  7000   //ÏÞ·ù×î´óÖµ9500
+  173          
+  174          void go_motor (int16 left_PWM,int16 right_PWM)
+  175          {
+  176   1      if  (MOTOR_MODE==0)
+  177   1      { 
+  178   2      //-------MOSÇý¶¯--------  
+  179   2          if (left_PWM>0)           //×óÂÖ
+  180   2        {
+  181   3          left_PWM = left_PWM<=Duty_Max ? left_PWM : Duty_Max;
+  182   3           pwm_duty(Left_Z_Pin,left_PWM);
+  183   3           pwm_duty(Left_F_Pin,0);       //Õý×ª
+  184   3         }  
+  185   2      else 
+  186   2       {
+C251 COMPILER V5.60.0,  speed                                                              10/04/23  08:48:15  PAGE 4   
+
+  187   3          left_PWM = left_PWM>=-Duty_Max ? (-left_PWM) : Duty_Max;  
+  188   3           pwm_duty(Left_Z_Pin,0);  
+  189   3           pwm_duty(Left_F_Pin,left_PWM);      //·´×ª
+  190   3        }
+  191   2      
+  192   2          if (right_PWM>0)           //ÓÒÂÖ
+  193   2        {
+  194   3         right_PWM = right_PWM<=Duty_Max ? right_PWM : Duty_Max; 
+  195   3         pwm_duty(Right_Z_Pin,right_PWM); 
+  196   3         pwm_duty(Right_F_Pin,0);      //Õý×ª
+  197   3         } 
+  198   2      else 
+  199   2       {
+  200   3          right_PWM = right_PWM>=-Duty_Max ? (-right_PWM) : Duty_Max;  
+  201   3          pwm_duty(Right_Z_Pin,0);  
+  202   3          pwm_duty(Right_F_Pin,right_PWM); //·´×ª
+  203   3        }
+  204   2      }
+  205   1      else
+  206   1      {
+  207   2      //-------DRVÇý¶¯-----------
+  208   2         if (left_PWM>0)           //×óÂÖ
+  209   2        {
+  210   3          left_PWM = left_PWM<=Duty_Max ? left_PWM : Duty_Max;
+  211   3           P64=0;      
+  212   3           pwm_duty(Left_PWM_Pin,left_PWM);//Õý×ª
+  213   3         }  
+  214   2      else 
+  215   2       {
+  216   3          left_PWM = left_PWM>=-Duty_Max ? (-left_PWM) : Duty_Max;  
+  217   3           P64=1; 
+  218   3           pwm_duty(Left_PWM_Pin,left_PWM);//·´×ª
+  219   3        }
+  220   2      
+  221   2          if (right_PWM>0)           //ÓÒÂÖ
+  222   2        {
+  223   3         right_PWM = right_PWM<=Duty_Max ? right_PWM : Duty_Max;
+  224   3         P60=0;      
+  225   3         pwm_duty(Right_PWM_Pin,right_PWM); //Õý×ª    
+  226   3        
+  227   3         } 
+  228   2      else 
+  229   2       {
+  230   3          right_PWM = right_PWM>=-Duty_Max ? (-right_PWM) : Duty_Max;  
+  231   3          P60=1;
+  232   3          pwm_duty(Right_PWM_Pin,right_PWM); //·´×ª
+  233   3        }
+  234   2      }
+  235   1      
+  236   1      }
+  237          
+*** WARNING C182 IN LINE 32 OF ..\CODE\speed.c: 'F14x16': unknown size, assumed to be 'extern'
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       762     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        83     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+C251 COMPILER V5.60.0,  speed                                                              10/04/23  08:48:15  PAGE 5   
+
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       104     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  3 WARNING(S),  0 ERROR(S)

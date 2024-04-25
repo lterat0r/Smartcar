@@ -1,0 +1,221 @@
+C251 COMPILER V5.60.0,  NewOther                                                           10/04/23  08:48:15  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE NewOther
+OBJECT MODULE PLACED IN .\Out_File\NewOther.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\CODE\NewOther.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Libra
+                    -ries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) D
+                    -EBUG PRINT(.\Out_File\NewOther.lst) TABS(2) OBJECT(.\Out_File\NewOther.obj) 
+
+stmt  level    source
+
+    1          #include "NewOther.h"
+    2           
+    3          /*=========================出库入库处理================================================
+    4           inout 1为入库 0为出库
+    5           lr     1为右   0为左
+    6           注意：如果设置了右出必定为右进，设置了左出必定为左进
+    7           说明：已经修改为时间方式出入库了，由于之前使用编码器路程方法，发现很多人不清楚不懂不会找问题，那用土办法
+             -吧!
+    8          日期：2021-5-29-9:00
+    9          修改时间：2021-5-29-9:00
+   10          作者：  那个混子  
+   11           *******************************************/
+   12          uint8 LEFT_RIGHT = 0;//       LEFT_RIGHT 1为右   0为左
+   13          uint32 T_ALready = 0;//全局计时（一直在计时的哦！）
+   14          void OutInGarage (unsigned char inout, unsigned char lr)
+   15           {
+   16   1           int16 T_New = 0;//当前时间获取
+   17   1      //------------------右边-右边-右边-右边-右边---------右边出库、入库操作----------------------------------
+             -------------------------------
+   18   1           if (lr)           // 1右出入库
+   19   1           {
+   20   2               if (inout)    // 1右入库
+   21   2               {
+   22   3                   T_New = T_ALready;//获取当前时间
+   23   3                  
+   24   3      //             go_motor(-4000,-4000); 
+   25   3      //             delay_ms(1200);//调用库自带的延时函数
+   26   3      //             go_motor(3000,2000); 
+   27   3                 
+   28   3                 while(P32==0)
+   29   3                 {  
+   30   4                     pwm_duty(Steer_Pin, Steer_Duty_Midle);//回正方向
+   31   4                    go_motor(-2500,-2500); 
+   32   4                 }
+   33   3                    delay_ms(250);
+   34   3                   go_motor(-6000,-3000);   //go_motor(4000,-2000);
+   35   3                    pwm_duty(Steer_Pin, Steer_Duty_Min);//控制右打角
+   36   3                   while (T_ALready < T_New + 20)
+   37   3                   {
+   38   4                          delay_ms(10);//调用库自带的延时函数
+   39   4                   }
+   40   3                     pwm_duty(Steer_Pin, Steer_Duty_Midle);//回正方向
+   41   3                   go_motor(-3000,-3000); 
+   42   3                   delay_ms(100);
+   43   3                   DisableGlobalIRQ();    //关闭总中断 
+   44   3                   while (1)
+   45   3                   {
+   46   4                       //speed_measure();  //采样速度(需要编码器，如果没得编码器请勿打开)
+   47   4                       //go_motor(-real_speed*1000,-real_speed*1000);//刹车（需要编码器，如果没得编码器请勿打开）
+   48   4                      delay_ms(10);//调用库自带的延时函数
+   49   4                      go_motor(0,0);//停止
+   50   4                  }                 // 入库完毕，永久停车
+   51   3               }
+   52   2          
+   53   2               else  // 0右出库
+   54   2               {
+   55   3                   T_New = T_ALready;//获取当前时间
+C251 COMPILER V5.60.0,  NewOther                                                           10/04/23  08:48:15  PAGE 2   
+
+   56   3                   pwm_duty(Steer_Pin, Steer_Duty_Midle);//直走
+   57   3                   go_motor(2000,2000);       //固定速度出去
+   58   3                   while (T_ALready < T_New + 15)//根据实际调这个时间控制出库直走距离
+   59   3                   {
+   60   4                        delay_ms(10);//调用库自带的延时函数
+   61   4                   }
+   62   3                   T_New = T_ALready;//获取当前时间
+   63   3                   pwm_duty(Steer_Pin,Steer_Duty_Min); // 舵机向右打死为出库做准备
+   64   3                    go_motor(2000,2000);       //固定速度出去
+   65   3                   while (T_ALready < T_New + 12)  //(T_ALready < T_New + 20)
+   66   3                   {
+   67   4                          delay_ms(10);//调用库自带的延时函数
+   68   4                   }
+   69   3               }
+   70   2           }
+   71   1      
+   72   1      //--------------------------左边-左边-左边-------------------左边出库、入库操作--------------------------
+             ---------------------------------------
+   73   1           else // 0：左出入库；
+   74   1              {
+   75   2                  if (inout) // 1左入库
+   76   2                  {
+   77   3                   T_New = T_ALready;//获取当前时间
+   78   3                  
+   79   3                 
+   80   3                 while(P32==0)//退回来再次检测到干簧管，之前尝试用延时控制后退，不够精确改用此方法！！！！
+   81   3                 {
+   82   4                     pwm_duty(Steer_Pin, Steer_Duty_Midle);//回正方向
+   83   4                   // go_motor(-1500,-1500); 
+   84   4                 }
+   85   3                 delay_ms(250);
+   86   3                   go_motor(-3000,-6000); 
+   87   3                    pwm_duty(Steer_Pin, Steer_Duty_Max);//控制右打角
+   88   3                   while (T_ALready < T_New + 21)
+   89   3                   {
+   90   4                          delay_ms(10);//调用库自带的延时函数
+   91   4                   }
+   92   3                     pwm_duty(Steer_Pin, Steer_Duty_Midle);//回正方向
+   93   3                   go_motor(2000,2000);  //1500 1500
+   94   3                    delay_ms(50);
+   95   3                   DisableGlobalIRQ();    //关闭总中断 
+   96   3                   while (1)
+   97   3                   {
+   98   4                       //speed_measure();  //采样速度(需要编码器，如果没得编码器请勿打开)
+   99   4                       //go_motor(-real_speed*1000,-real_speed*1000);//刹车（需要编码器，如果没得编码器请勿打开）
+  100   4                      delay_ms(10);//调用库自带的延时函数
+  101   4                      go_motor(0,0);//停止
+  102   4                  }                 // 入库完毕，永久停车
+  103   3                  }
+  104   2                  else  // 0左出库
+  105   2                  {
+  106   3                   T_New = T_ALready;//获取当前时间
+  107   3                   pwm_duty(Steer_Pin, Steer_Duty_Midle);//直走
+  108   3                   go_motor(2000,2000);       //固定速度出去
+  109   3                   while (T_ALready < T_New + 12)
+  110   3                   {
+  111   4                        delay_ms(10);//调用库自带的延时函数
+  112   4                   }
+  113   3                   T_New = T_ALready;//获取当前时间
+  114   3                   pwm_duty(Steer_Pin,Steer_Duty_Max); // 舵机向左打死为出库做准备
+  115   3                    go_motor(2000,2000);       //固定速度出去
+  116   3                   while (T_ALready < T_New + 12)
+  117   3                   {
+  118   4                          delay_ms(10);//调用库自带的延时函数
+  119   4                   }
+  120   3             
+C251 COMPILER V5.60.0,  NewOther                                                           10/04/23  08:48:15  PAGE 3   
+
+  121   3                  }
+  122   2              }
+  123   1       }
+  124           
+  125           /************停车检测处理*****
+  126           函数：void STOP_Analyse ()
+  127           功能：识别斑马线建立停车标志位
+  128           参数：
+  129           说明：
+  130           返回值：
+  131          日期：2021-5-29-9:00
+  132          修改时间：2021-5-29-9:00
+  133          作者：  那个混子  
+  134           *******************************************/
+  135           uint16 STOP_T_Count = 0;
+  136           unsigned char Only_Once = 0;
+  137           uint8 INT_Flag=0;//干簧管外部中断标志位
+  138           void STOP_Analyse (void)
+  139           {
+  140   1       if(Flag.start_go==1 && Flag.STOP==0&&annulus_flag==0&&Dianci.SanChaKou_Flag==0) 
+  141   1       {
+  142   2       if(INT_Flag)
+  143   2       {
+  144   3         INT_Flag = 0;//触发后清零
+  145   3           BUZZ_ON
+  146   3            if(Only_Once==0) {STOP_T_Count= T_ALready;  Only_Once = 1;}//第一次识别到读取一次时间
+  147   3           if(( T_ALready>STOP_T_Count+10))//识别第一次后，让车子跑出去一段距离再进行下一次的识别
+  148   3               {
+  149   4                   Flag.STOP=1;
+  150   4               }
+  151   3       }
+  152   2       }
+  153   1      //----------------出库操作-----------------------------------------------
+  154   1       if(Flag.STOP == 1) //入库
+  155   1      {
+  156   2       int_OK =0;   //清零不再执行中断里其他程序
+  157   2       Flag.start_go = 0;//停止中断内执行
+  158   2       
+  159   2       BUZZ_OFF
+  160   2       OutInGarage (1, LEFT_RIGHT);
+  161   2      
+  162   2      }
+  163   1      
+  164   1       }
+  165          
+  166           
+  167          /*################调试专用#############################################
+  168                                                                  DisableGlobalIRQ();   //关闭总中断
+  169                                                                       while(1)
+  170                                                                       {
+  171                                                                           go_motor(0,0);
+  172                                                                           BUZZ_OFF;
+  173                                                                       }
+  174              //################调试专用#############################################*/
+  175          
+  176          
+*** WARNING C182 IN LINE 32 OF ..\CODE\NewOther.c: 'F14x16': unknown size, assumed to be 'extern'
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       614     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+C251 COMPILER V5.60.0,  NewOther                                                           10/04/23  08:48:15  PAGE 4   
+
+  xdata-const size     =    ------     ------
+  edata size           =         9     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        29     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

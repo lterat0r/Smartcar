@@ -1,0 +1,123 @@
+C251 COMPILER V5.60.0,  fuse                                                               10/04/23  08:48:15  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE fuse
+OBJECT MODULE PLACED IN .\Out_File\fuse.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\CODE\fuse.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Libraries
+                    -\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) DEBUG
+                    - PRINT(.\Out_File\fuse.lst) TABS(2) OBJECT(.\Out_File\fuse.obj) 
+
+stmt  level    source
+
+    1          #include "fuse.h"
+    2          Body Flag;                  //结构体定义各类关键标志位
+    3          int16 Turn_PWM = 0;   //最终转向PWM
+    4          /*******************PIT定时中断******************
+    5          函数：void Fuse_result(void)      
+    6          功能：速度环、转向环控制
+    7          参数：  无
+    8          说明：
+    9          返回值：无
+   10          日期： 2021-5-30
+   11          作者：  那个混子    */
+   12          unsigned char int_OK=0;//初始化成功标志位
+   13          void Fuse_result(void)      
+   14          {
+   15   1        if(int_OK)                //初始化成功
+   16   1        {
+   17   2             // P62=0;// 输出低 亮灯  
+   18   2              if(!Flag.start_go) // 保护（不动）  
+   19   2             {
+   20   3             go_motor(0,0);
+   21   3             }
+   22   2      ///////////////////////以下就是控制的执行代码//////////////////////
+   23   2              else
+   24   2              {
+   25   3      //5ms控制 
+   26   3                 if(1==Flag.T_Inmost)   
+   27   3                {  
+   28   4                 Flag.T_Inmost = 0;
+   29   4                //All_PWM_left = Speed_PWM-Turn_PWM*0.5;
+   30   4                //All_PWM_right = Speed_PWM+Turn_PWM*0.5;
+   31   4                All_PWM_left = Speed_PWM;
+   32   4                All_PWM_right = Speed_PWM;
+   33   4              if( !Dianci.SanChaKou_Flag)//非三岔口路段
+   34   4                go_motor(All_PWM_left,All_PWM_right);          //动力输出
+   35   4      
+   36   4                } 
+   37   3            
+   38   3      //10ms控制 方向
+   39   3               if(1==Flag.T_Turn)
+   40   3               {
+   41   4                  Flag.T_Turn=0;
+   42   4               
+   43   4                  Electromagnetism_Control();//电磁采集所有
+   44   4                   // adc_deviation =Cha_BI_He(Left_Adc,Right_Adc,Mid_Adc,100);//左右中差比和 
+   45   4                // adc_deviation =Cha_BI_He_Sqrt(Left_Adc,Right_Adc,1000)+Cha_BI_He(Left_Xie_Adc,Right_Xie_Adc,0,
+             -0);
+   46   4                 adc_deviation =Cha_BI_He_Sqrt(Left_Adc,Right_Adc,900)+Cha_BI_He_Sqrt(Left_Xie_Adc,Right_Xie_Adc,100
+             -);;
+   47   4                 adc_deviation = PlacePID_Control(&TurnPID,Turn_Pid[Turn_Suquence], adc_deviation, 0); //转向动态
+             -PID   
+   48   4                 Turn_PWM =-adc_deviation;
+   49   4                Steering_Control_Out(Turn_PWM);//舵机最终输出（函数内部已限幅）
+   50   4            }
+   51   3      //50ms控制   速度      
+   52   3            if(1==Flag.T_Speed)
+   53   3                  {
+   54   4                     Flag.T_Speed=0; 
+C251 COMPILER V5.60.0,  fuse                                                               10/04/23  08:48:15  PAGE 2   
+
+   55   4                                               
+   56   4                  //Speed_PWM =  PID_Realize(&SpeedPID, Speed_Pid, real_speed,aim_speed);//速度位置式PID
+   57   4                  //Speed_PWM= range_protect(Speed_PWM, -1200, 1200); // 注意正负号 
+   58   4                  //如果没有编码器
+   59   4                    //Speed_PWM = aim_speed*10;
+   60   4                    Speed_PWM = aim_speed*10;
+   61   4                  }
+   62   3         }
+   63   2        }
+   64   1      }
+   65            
+   66          
+   67          
+   68          
+   69          
+   70          //核心关键的标志位结构体初始化
+   71          void Flag_Init()
+   72          {
+   73   1            Flag.start_go = 0;
+   74   1            Flag.T_Inmost = 0;
+   75   1            Flag.T_Turn=0;
+   76   1            Flag.T_Speed=0; 
+   77   1            Flag.STOP=0;//停车结束
+   78   1            Flag.OUT_Garage = 0;//出库标志位
+   79   1            Flag.Game = 0;
+   80   1      }
+   81          
+   82          
+*** WARNING C182 IN LINE 32 OF ..\CODE\fuse.c: 'F14x16': unknown size, assumed to be 'extern'
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       237     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        10     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        11     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

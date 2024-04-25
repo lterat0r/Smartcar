@@ -1,0 +1,554 @@
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE debug
+OBJECT MODULE PLACED IN .\Out_File\debug.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\CODE\debug.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Librarie
+                    -s\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) DEBU
+                    -G PRINT(.\Out_File\debug.lst) TABS(2) OBJECT(.\Out_File\debug.obj) 
+
+stmt  level    source
+
+    1          #include "debug.h"
+    2          //===================================================通信相关的==========================================
+             -================
+    3          //=======================================================================================================
+             -===============
+    4          /****************数据传输******************
+    5          函数：void datasend()
+    6          参数：  无
+    7          说明： 可以同时传输6个数  icm_gyro_x   icm_acc_x ICM_Real.gyro.y  ICM_Real.acc.z   
+    8          常看的变量：icm_acc_x  icm_gyro_y  Angle  adc_date[0] Left_Adc
+    9          
+   10          返回值：无
+   11          日期：2020-7-10
+   12          作者：  那个混子     */
+   13          void datasend()
+   14          {  
+   15   1         short send_data[6];                      
+   16   1      
+   17   1         send_data[0]=  adc_date[0] ; ////////ICM_Start.acc.x 
+   18   1         send_data[1]=  adc_date[1] ;    //////////////////    MpuStart.gyro.x   Angle  
+   19   1         send_data[2]= adc_date[2];//  ////////
+   20   1         send_data[3]= adc_date[3]  ;//
+   21   1         send_data[4]= Left_Adc;
+   22   1         send_data[5]= Right_Adc  ;
+   23   1         Data_Send(UART_User,send_data);
+   24   1        // Data_Send(DEBUG_UART,send_data); 
+   25   1      }
+   26          
+   27          //====================================================屏幕相关的=(已删除)================================
+             -=============================
+   28          //=======================================================================================================
+             -=====================
+   29          //sprintf(temp," date20=%d",date);
+   30          //TFTSPI_P8X8Str(0,19,temp,BLACK,WHITE);break;
+   31          
+   32          //==========================================================拨码开关及按键相关===========================
+             -==============================
+   33          //=======================================================================================================
+             -=============================
+   34          
+   35          //拨码开关引脚宏定义
+   36          #define Switch_Pin_1       P33
+   37          #define Switch_Pin_2       P32
+   38          #define Switch_Pin_3       P20
+   39          #define Switch_Pin_4       P20
+   40          #define Switch_Pin_5       P20
+   41          #define Switch_Pin_6       P20
+   42          //定义按键引脚
+   43          #define KEY1    P70      
+   44          #define KEY2    P71      
+   45          #define KEY3    P72        
+   46          #define KEY4    P73      
+   47          #define KEY5    P20       
+   48          //***************函数宏定义****(下面这些函数请修改宏定义为对应的GPIO库函数操作)***********
+   49          #define KEY_INT(key_x)           gpio_pull_set(key_x,PULLUP)//配置为上拉电阻   
+   50          #define SWITCH_INT(switch_x)     gpio_pull_set(switch_x,PULLUP)//配置为上拉电阻
+   51          #define READ_GPIO(Pin_X)         Pin_X
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 2   
+
+   52          #define TiaoCan_DelayMs(M_S)     delay_ms(M_S)   //延时
+   53          
+   54          unsigned char TiaoCan=0;////////////////////////调参标志位
+   55          unsigned char TFT_SHOW=0;///////////////////////屏幕开关
+   56          unsigned char Switch1=0,Switch2=0,Switch3=0,Switch4=0,Switch5=0,Switch6=0;//拨码
+   57          char parameter=0;//参数选择
+   58          
+   59          //开关状态变量
+   60          uint8 key1_status = 1,key2_status = 1,key3_status = 1, key4_status = 1,key5_status = 1;
+   61          //上一次开关状态变量
+   62          uint8 key1_last_status, key2_last_status, key3_last_status, key4_last_status,key5_last_status;
+   63          //开关标志位
+   64          uint8 key1_flag=0,key2_flag=0,key3_flag=0, key4_flag=0,key5_flag=0;
+   65          /*****************拨码开关及按键初始化*****************
+   66          函数：void Switch_Key_init()
+   67          功能：初始化IO
+   68          参数：  无
+   69          说明： 初始化IO口   gpio_init(D1, GPI, GPIO_HIGH, GPI_PULL_UP); GPO_PUSH_PULL
+   70          返回值：无
+   71          日期：3月23
+   72          修改日期：2021-3-24
+   73          作者：   那个混子  */
+   74          void Switch_Key_init()
+   75          {
+   76   1      
+   77   1          //拨码开关初始化  （无需修改，请勿修改）
+   78   1            SWITCH_INT(Switch_Pin_1) ;
+   79   1            SWITCH_INT(Switch_Pin_2) ;
+   80   1            SWITCH_INT(Switch_Pin_3) ;
+   81   1            SWITCH_INT(Switch_Pin_4) ;
+   82   1            SWITCH_INT(Switch_Pin_5) ;
+   83   1            SWITCH_INT(Switch_Pin_6) ;
+   84   1          
+   85   1          //按键初始化 （无需修改，请勿修改）
+   86   1         KEY_INT(KEY1);
+   87   1         KEY_INT(KEY2);
+   88   1         KEY_INT(KEY3);
+   89   1         KEY_INT(KEY4);
+   90   1         KEY_INT(KEY5);
+   91   1      
+   92   1      }
+   93          
+   94          
+   95          /*****************拨码开关策略选择*****************
+   96          函数：void Strategy_Slect()
+   97          功能：通过拨码开关调整策略
+   98          参数：  无
+   99          说明：  6位拨码开关，如果有增加或者减少可对照修改,如果不足6个也不要删除多余的，多余的你随便引脚改个没用的
+             -即可
+  100                  使用你定义的就好了，其他没有用到的无需关心
+  101          返回值：无
+  102          日期：2021-3-23
+  103          修改日期：2021-3-24
+  104          作者：那个混子       */
+  105          void Strategy_Slect()
+  106          {
+  107   1        //读取拨码开关状态
+  108   1            if(!READ_GPIO(Switch_Pin_1))//用
+  109   1            {
+  110   2             Switch1=1;
+  111   2             TFT_SHOW = 1;
+  112   2      
+  113   2            }
+  114   1            if(!READ_GPIO (Switch_Pin_2))//用
+  115   1            {
+  116   2             Switch2=1;
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 3   
+
+  117   2             LEFT_RIGHT=0;//左出库左入库
+  118   2            }
+  119   1            
+  120   1            
+  121   1            if(!READ_GPIO (Switch_Pin_3))
+  122   1            {
+  123   2             Switch3=1;
+  124   2            }
+  125   1            if(!READ_GPIO (Switch_Pin_4))
+  126   1            {
+  127   2             Switch4=1;
+  128   2      
+  129   2            }
+  130   1            if(!READ_GPIO (Switch_Pin_5))
+  131   1            {
+  132   2             Switch5=1;
+  133   2      
+  134   2            }
+  135   1            if(!READ_GPIO (Switch_Pin_6))
+  136   1            {
+  137   2             Switch6=1;
+  138   2       
+  139   2            }
+  140   1      
+  141   1          if(Switch1||Switch2||Switch3||Switch4||Switch5||Switch6)//开启拨码开关
+  142   1            {
+  143   2      
+  144   2            }
+  145   1      
+  146   1      }
+  147          
+  148          /*****************按键扫描读取*****************
+  149          函数：void  Key_Scan_Deal ()
+  150          功能：读取按键并执行对应操作
+  151          参数：  无
+  152          说明： 参考逐飞例程 ，5位按键，如果有增加或者减少可对照修改
+  153                // 1号为左移键，2号为上键，3号为右移键，4号为中键盘，5号为下键
+  154               //本次程序没有使用调参，stc单片机下载程序也快，改了烧就可以，如果要加的话自己根据下面的自己加就可以
+  155          返回值：无
+  156          日期：2021-3-23
+  157          修改日期：2021-3-23
+  158          作者：那个混子       */
+  159          uint8 gogo=0;
+  160          void  Key_Scan_Deal ()
+  161          {
+  162   1          //使用此方法优点在于，不需要使用while(1) 等待，避免处理器资源浪费
+  163   1          //保存按键状态
+  164   1          key1_last_status = key1_status;
+  165   1          key2_last_status = key2_status;
+  166   1          key3_last_status = key3_status;
+  167   1          key4_last_status = key4_status;
+  168   1          key5_last_status = key5_status;
+  169   1          //读取当前按键状态
+  170   1          key1_status = READ_GPIO(KEY1);
+  171   1          key2_status = READ_GPIO(KEY2);
+  172   1          key3_status = READ_GPIO(KEY3);
+  173   1          key4_status = READ_GPIO(KEY4);
+  174   1          key5_status = READ_GPIO(KEY5);
+  175   1          //检测到按键按下之后  并放开置位标志位
+  176   1          if(key1_status && !key1_last_status)    key1_flag = 1;
+  177   1          if(key2_status && !key2_last_status)    key2_flag = 1;
+  178   1          if(key3_status && !key3_last_status)    key3_flag = 1;
+  179   1          if(key4_status && !key4_last_status)    key4_flag = 1;
+  180   1          if(key5_status && !key5_last_status)    key5_flag = 1;
+  181   1          //标志位置位之后，可以使用标志位执行自己想要做的事件
+  182   1       
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 4   
+
+  183   1                 if(key1_flag&&(gogo==1||gogo==2)) //上键
+  184   1                 {
+  185   2                     key1_flag = 0;//使用按键之后，应该清除标志位
+  186   2                 /*  以下为用户任务  */
+  187   2                            switch(parameter)
+  188   2                            {
+  189   3                    //-----------------------调参请修改下面--（注意修改对应的显示）----------------------------
+             -------------------------------------
+  190   3                           //第一页显示的东西
+  191   3                            case 0: aim_speed+=5; break;
+  192   3                            case 1:Turn_Pid[1][0]+=0.1;    break;
+  193   3                            case 2:Turn_Pid[1][1]+=0.5;   break;
+  194   3                            case 3:Turn_Pid[1][2]+=0.1;   break;
+  195   3                            case 4: break;
+  196   3                            case 5:       break;
+  197   3      
+  198   3                           /// case 6:  ; break;//这个不能加任何操作在这里了，翻页使用啦
+  199   3      
+  200   3                            //第二页显示的东西
+  201   3                            case 7: Speed_Pid[0]+=0.1 ; break;
+  202   3                            case 8: Speed_Pid[0]+=0.1 ; break;
+  203   3                            case 9: Speed_Pid[0]+=0.1 ; break;
+  204   3                            case 10:  ; break;
+  205   3                            case 11:  ; break;
+  206   3                            case 12:  ; break;
+  207   3                    //--------------------调参请修改上面-------------------------------------------------------
+             ------------
+  208   3                            }
+  209   2                            /*  以上为用户任务  */
+  210   2                    
+  211   2      
+  212   2                 }
+  213   1      
+  214   1                 if(key2_flag&&(gogo==1||gogo==2))//下键
+  215   1                 {
+  216   2                     key2_flag = 0;//使用按键之后，应该清除标志位
+  217   2                      /*  以下为用户任务  */
+  218   2                            switch(parameter)
+  219   2                            {
+  220   3                      //----------------------调参请修改下面--（注意修改对应的显示）---------------------------
+             ------------------------------------
+  221   3                                //第一页显示的东西
+  222   3                               case 0: aim_speed-=5; break;
+  223   3                               case 1:Turn_Pid[1][0]-=0.1;    break;
+  224   3                               case 2:Turn_Pid[1][1]-=0.5;   break;
+  225   3                               case 3:Turn_Pid[1][2]-=0.1;   break;
+  226   3                               case 4:break;
+  227   3                               case 5:  break;
+  228   3      
+  229   3                              /// case 6:  ; break;//这个不能加任何操作在这里了，翻页使用啦
+  230   3      
+  231   3                               //第二页显示的东西
+  232   3                               case 7:Speed_Pid[0]-=0.1; break;
+  233   3                               case 8:Speed_Pid[1]-=0.1  ; break;
+  234   3                               case 9:Speed_Pid[2]-=0.1  ; break;
+  235   3                               case 10:  ; break;
+  236   3                               case 11:  ; break;
+  237   3                               case 12:  ; break;
+  238   3                    //--------------------调参请修改上面-------------------------------------------------------
+             ------------
+  239   3                            }
+  240   2                            /*  以上为用户任务  */
+  241   2                    
+  242   2                 }
+  243   1      
+  244   1                 if(key3_flag&&(gogo==1||gogo==2))//左键
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 5   
+
+  245   1                 {
+  246   2                     key3_flag = 0;//使用按键之后，应该清除标志位
+  247   2                     /*  以下为用户任务  */
+  248   2                            parameter--;
+  249   2                     /*  以上为用户任务  */
+  250   2      
+  251   2                 }
+  252   1      
+  253   1                 if(key4_flag&&(gogo==1||gogo==2))//右键
+  254   1                 {
+  255   2                     key4_flag = 0;//使用按键之后，应该清除标志位
+  256   2                     /*  以下为用户任务  */
+  257   2                            parameter++;
+  258   2                     /*  以上为用户任务  */
+  259   2      
+  260   2                 }
+  261   1                  if(key5_flag) //中键
+  262   1                 {
+  263   2                    key5_flag = 0;//使用按键之后，应该清除标志位
+  264   2                  /*  以下为用户任务  */
+  265   2                  
+  266   2      
+  267   2                  /*  以上为用户任务  */
+  268   2      
+  269   2                 }
+  270   1           if(gogo==6)//告辞啦，调参结束！！！！！！！！！！！！
+  271   1            {
+  272   2      
+  273   2                TiaoCan = 1;      //调参结束标志位
+  274   2      
+  275   2            }
+  276   1                            
+  277   1                                   //lcd_showfloat(0,5,Speed_Pid[0],2,1);//显示浮点数   整数显示2位   小数显示三位
+  278   1                 //*******************************屏幕显示第一页***********************
+  279   1      
+  280   1          if(parameter<6&&gogo>=1)//显示参数0到5，实际显示1到6
+  281   1                  {
+  282   2                
+  283   2                  }
+  284   1                 //*******************************屏幕显示第二页***********************************************
+             -***
+  285   1                 if(parameter>6&&parameter<13)//这里行号从4到9   一页调6个参数  //显示参数7到5，实际显示7到12
+  286   1                 {
+  287   2                
+  288   2                  }
+  289   1                 //*******************************屏幕显示第三页***********************************************
+             -***
+  290   1                         if(parameter>13&&parameter<20)
+  291   1                         {
+  292   2                        
+  293   2                          }
+  294   1                 //###########还需要更多页仿照着写就可以咯######################这里就不写了 结束
+  295   1                         if(parameter==6||parameter==13||parameter==20)  //翻页准备
+  296   1                         {
+  297   2                           
+  298   2                         }//清屏
+  299   1      
+  300   1      
+  301   1      
+  302   1      
+  303   1      
+  304   1      }
+  305          
+  306          
+  307          //===============================================蜂鸣器相关=============================================
+  308          //=====================================================================================================
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 6   
+
+  309          
+  310          //蜂鸣器开和关 被写在对应头文件去了，去H文件查看
+  311          
+  312          /*****************蜂鸣器滴滴滴*****************
+  313          函数：void BUZZ_DiDiDi()
+  314          功能：蜂鸣器滴滴滴
+  315          参数：  无
+  316          说明：
+  317          返回值：无
+  318          日期：2021-3-23
+  319          修改日期：2021-3-23
+  320          作者： 那个混子      */
+  321          void BUZZ_DiDiDi(uint16 PinLV)
+  322          {
+  323   1        BUZZ_ON;
+  324   1        TiaoCan_DelayMs(PinLV);
+  325   1        BUZZ_OFF;
+  326   1      }
+  327          
+  328          
+  329          /***************************测试完毕**********************************************
+  330           *  函数名称：Test_Servo(void)
+  331           *  功能说明：舵机PWM初始化，测试标定输出PWM控制SD5/S3010舵机
+  332           *  参数说明：无
+  333           *  函数返回：无
+  334           *  修改时间：
+  335           *  备    注：参考龙邱库提供的！！！！
+  336           【注意事项】注意，一定要对舵机打角进行限制
+  337           使用龙邱母板测试流程：
+  338           1.先使用万用表测量电池电压，务必保证电池电压在7V以上，否则无力不反应！
+  339           2.然后确定舵机供电电压，SD5舵机用5V供电，S3010用6-7V供电，SD012舵机用5V供电！！！
+  340           3.把舵机的舵盘去掉，让舵机可以自由转动；
+  341           4.烧写程序并运行，让舵机转动到中值附近；如果没反应重复1-2步，或者调整舵机的PWM频率计占空比，能受控为准；
+  342           5.舵机受控后用手轻转，舵机会吱吱响，对抗转动，此时可以装上舵盘；
+  343           6.按键K0/K1确定舵机的左右转动极限，并记下来，作为后续限幅防止舵机堵转烧毁！
+  344           *************************************************************************/
+  345          void Test_Servo_Hardware (void)
+  346          {
+  347   1          char txt[16] = "X:";
+  348   1          unsigned int  duty = Steer_Duty_Midle;
+  349   1      
+  350   1          oled_fill(0x00);  //初始清屏
+  351   1        lcd_showstr(0, 0, "Test_Servo_Hardware:");
+  352   1          pwm_init(Steer_Pin, 50, Steer_Duty_Midle);     //初始化舵机  输出PWM频率200HZ，并设置中值
+  353   1          pwm_duty(Steer_Pin, Steer_Duty_Midle);
+  354   1          while (1)
+  355   1          {
+  356   2              if (!READ_GPIO(KEY1))
+  357   2              {
+  358   3                  if (duty > 100)     //防止duty超
+  359   3                  {
+  360   4                      duty += 10;     //标定的时候，可以把步长改小点，比如10
+  361   4                  }
+  362   3              }
+  363   2              if (! READ_GPIO(KEY2))
+  364   2              {
+  365   3                  duty = Steer_Duty_Midle;
+  366   3              }
+  367   2              if (! READ_GPIO(KEY4))
+  368   2              {
+  369   3                  duty -= 10;
+  370   3              }
+  371   2              pwm_duty(Steer_Pin, duty);
+  372   2              lcd_showint8(0, 5, duty);
+*** WARNING C188 IN LINE 372 OF ..\CODE\debug.c: 'parameter 3': value truncated
+  373   2              sprintf(txt, "Servo:%05d ", duty);
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 7   
+
+  374   2              oled_p6x8str(1, 2, txt); //显示
+  375   2              TiaoCan_DelayMs(100);        
+  376   2          }
+  377   1      }
+  378          
+  379          /****************************测试完毕*********************************************
+  380           *  函数名称：TestMotor(void)
+  381           *  功能说明：测试标定输出PWM控制电机
+  382           *  参数说明：无
+  383           *  函数返回：无
+  384           *  修改时间：
+  385           *  备    注：驱动2个电机
+  386           【注意事项】注意，一定要对电机输出进行限制
+  387           使用龙邱母板测试流程：
+  388           1.先使用万用表测量电池电压，务必保证电池电压在7V以上，否则无力不反应！
+  389           2.接好母板到驱动板的信号线及电源线；
+  390           3.接好驱动板到电机的导线；
+  391           4.烧写程序并运行，确定电机能正常转动后，开启驱动板电源开关；
+  392           5.按键K0/K1确定电机转动速度及方向；
+  393           6.如果出现疯转，按下K1键返回低速模式，或者直接关闭驱动板电源！
+  394           *************************************************************************/
+  395          void Test_Motor_Hardware (void)
+  396          {
+  397   1          short duty = 2000;
+  398   1          oled_fill(0x00);  //初始清屏
+  399   1        lcd_showstr(2, 0, "Test_Motor_Hardware:");
+  400   1         init_PWM(0);
+  401   1          while (1)
+  402   1          {
+  403   2          if (!READ_GPIO(KEY1))   //按下KEY0键   左轮单独正转
+  404   2              {
+  405   3                   go_motor (duty,0);
+  406   3                 lcd_showstr(0, 4, "Left  Front");   //字符串显示
+  407   3              }
+  408   2             if (!READ_GPIO(KEY2)) //按下KEY2键，左右轮同时反转
+  409   2              {
+  410   3                   go_motor (-duty,-duty);
+  411   3                 lcd_showstr(0, 4, "All  Black");   //字符串显示
+  412   3                       
+  413   3              }
+  414   2            if (!READ_GPIO(KEY3))      //按下KEY1键  右轮单独正转
+  415   2              {
+  416   3                   go_motor (0,duty);
+  417   3                   lcd_showstr(0, 4, "Right Front");   //字符串显示
+  418   3              }
+  419   2              if((READ_GPIO(KEY1))&&(READ_GPIO(KEY2))&&(READ_GPIO(KEY3)))
+  420   2              go_motor (0,0);
+  421   2              TiaoCan_DelayMs(100);  
+  422   2          }
+  423   1      }
+  424          
+  425          /****************************测试完毕*********************************************
+  426           *  函数名称：void Test_Electric_Hardware (void)
+  427           *  功能说明：测试电磁电感硬件
+  428           *  参数说明：无
+  429           *  函数返回：无
+  430           *  修改时间：2021-5-30
+  431           *  备    注：
+  432           【注意事项】
+  433           *************************************************************************/
+  434          void Test_Electric_Hardware (void)
+  435          {
+  436   1         char txt[16];
+  437   1        oled_fill(0x00);  //初始清屏
+  438   1        lcd_showstr(2, 0, "Test_Electric_Hardware:");
+  439   1        ADC_Int();
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 8   
+
+  440   1        while(1)
+  441   1        {
+  442   2            //datasend();
+  443   2           if (!READ_GPIO(KEY2)) //按下KEY2键，左右轮同时反转
+  444   2              {
+  445   3                 lcd_showstr(2, 1, "Normalize_Deal....");   //字符串显示
+  446   3                AD_Date_Fitier();
+  447   3                normalize_date();
+  448   3                sprintf(txt,"adc0= %05f",adc_date[0]);
+  449   3              lcd_showstr(1, 2, txt); //显示
+  450   3                sprintf(txt,"adc1= %05f",adc_date[1]);
+  451   3              lcd_showstr(1, 3, txt); //显示
+  452   3                sprintf(txt,"adc2= %05f",adc_date[2]);
+  453   3              lcd_showstr(1, 4, txt); //显示
+  454   3                sprintf(txt,"adc3= %05d",adc_date[3]);
+  455   3              lcd_showstr(1, 5, txt); //显示
+  456   3                sprintf(txt,"adc4= %05d",adc_date[4]);
+  457   3              lcd_showstr(1, 6, txt); //显示          
+  458   3                       
+  459   3              }
+  460   2              else
+  461   2              {
+  462   3                
+  463   3              
+  464   3           lcd_showstr(2, 1, "                   ");   //字符串显示
+  465   3            AD_Date_Fitier();
+  466   3      //      adc_date[0] = adc_mean_filter (Left_ADC_Pin,ADC_12BIT,20); 
+  467   3      //      adc_date[1] = adc_mean_filter  (Right_ADC_Pin,ADC_12BIT,20); 
+  468   3      //      adc_date[2] = adc_mean_filter  (LeftXie_ADC_Pin,ADC_12BIT,20); 
+  469   3      //      adc_date[3] = adc_mean_filter  (RightXie_ADC_Pin,ADC_12BIT,20); 
+  470   3      //      adc_date[4] = adc_mean_filter  (Mid_ADC_Pin,ADC_12BIT,2); 
+  471   3            sprintf(txt,"adc0= %05d",adc_date[0]);
+  472   3          lcd_showstr(1, 2, txt); //显示
+  473   3            sprintf(txt,"adc1= %05d",adc_date[1]);
+  474   3          lcd_showstr(1, 3, txt); //显示
+  475   3            sprintf(txt,"adc2= %05d",adc_date[2]);
+  476   3          lcd_showstr(1, 4, txt); //显示
+  477   3            sprintf(txt,"adc3= %05d",adc_date[3]);
+  478   3          lcd_showstr(1, 5, txt); //显示
+  479   3            sprintf(txt,"adc4= %05d",adc_date[4]);
+  480   3          lcd_showstr(1, 6, txt); //显示
+  481   3                  }
+  482   2      }
+  483   1        
+  484   1      }
+  485          
+  486          
+  487          
+*** WARNING C182 IN LINE 32 OF ..\CODE\debug.c: 'F14x16': unknown size, assumed to be 'extern'
+*** WARNING C183 IN LINE 397 OF ..\CODE\debug.c: dead assignment eliminated
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      1550     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        25         44
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+C251 COMPILER V5.60.0,  debug                                                              10/04/23  08:48:15  PAGE 9   
+
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       356     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  3 WARNING(S),  0 ERROR(S)

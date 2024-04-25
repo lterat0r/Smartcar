@@ -1,0 +1,381 @@
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Function
+OBJECT MODULE PLACED IN .\Out_File\Function.obj
+COMPILER INVOKED BY: D:\MDK5\C251\BIN\C251.EXE ..\CODE\Function.c XSMALL INTR2 WARNINGLEVEL(3) BROWSE INCDIR(..\..\Libra
+                    -ries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src) D
+                    -EBUG PRINT(.\Out_File\Function.lst) TABS(2) OBJECT(.\Out_File\Function.obj) 
+
+stmt  level    source
+
+    1          #include "Function.h"
+    2          /**********直立PID参数******/
+    3          
+    4          
+    5          /********速度PID参数********/
+    6          PID SpeedPID;//速度PID储存（只是储存的中间量，无需关心）
+    7          
+    8          float Speed_Pid[4]  = {3.8,0.001,0, 500};   // 速度环PID{3.8,0.001,0, 500}
+    9          /*******转向PID************/
+   10          PID DirectVelPID;//转向内环PID储存（只是储存的中间量，无需关心）
+   11          float DirectVel_Pid[4]  = {0.006,0, 0.01, 100}; // 转向内环PID 位置 0.017 0.02
+   12          PID TurnPID;//转向PID储存（只是储存的中间量，无需关心）
+   13          float Turn_Pid[][4]  = { {1.2,0.2,0,200},        // 最后一项为积分限幅 1.2,0.2,0,200},
+   14                                     {8,1,0,150},            //电磁转向 {8,1,0,150}, {5,1,0,150},   
+   15                                    {0.5,0,0,150},//圆环的PID {0.5,0.1,0,150}
+   16                                   {0.5,0.1,0,150},        //速度稍微快 {2.5,0.1,0,100} {3,0.1,0.55,100},
+   17                                  };
+   18          
+   19          uint8 Turn_Suquence = 0;//转向PID选择
+   20          
+   21          
+   22          // PID参数初始化
+   23          void PID_Parameter_Init(PID *sptr)
+   24          {
+   25   1        sptr->SumError  = 0;
+   26   1        sptr->LastError = 0;  //Error[-1]
+   27   1        sptr->PrevError = 0;  //Error[-2] 
+   28   1        sptr->LastData  = 0;
+   29   1      }
+   30          
+   31          
+   32          // ********************位置式动态PID控制************************************
+   33          /*
+   34          函数：int32 PlacePID_Control(PID *sprt, float *PID, int32 NowPiont, int32 SetPoint)
+   35          功能：位置式动态PID控制
+   36          参数：
+   37          PID *sprt：      结构体指针
+   38          float *PID：     PID数组  （通过数组定义PID值）
+   39          int32 NowPiont： 当前值  （可使用结构体定义变量）
+   40          int32 SetPoint： 设定目标值   转向控制中设定值为0。
+   41          
+   42          说明：  该函数参考其他程序。动态控制一般用于转向控制
+   43          返回值： int32 Realize
+   44          eg：Radius = PlacePID_Control(&Turn_PID, Turn[Fres], Difference, 0);// 动态PID控制转向
+   45          日期： 2月1日
+   46          作者：  那个混子     */
+   47          // 位置式动态PID控制
+   48          int32 PlacePID_Control(PID *sprt, float *PID, int32 NowPiont, int32 SetPoint)
+   49          {
+   50   1        //定义为寄存器变量，只能用于整型和字符型变量，提高运算速度
+   51   1        int32 iError, //当前误差
+   52   1            Actual; //最后得出的实际输出值
+   53   1        float Kp;   //动态P
+   54   1        iError = SetPoint - NowPiont; //计算当前误差
+   55   1        sprt->SumError += iError*0.01;
+   56   1        if (sprt->SumError >= PID[KT])
+   57   1        {
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 2   
+
+   58   2          sprt->SumError = PID[KT];
+   59   2        }
+   60   1        else if (sprt->SumError <=-PID[KT])
+   61   1        {
+   62   2          sprt->SumError = -PID[KT];
+   63   2        }
+   64   1                
+   65   1        Kp = 1.0 * (iError*iError)/PID[KP] + PID[KI]; //P值与差值成二次函数关系，此处P和I不是PI
+             -D参数，而是动态PID参数，要注意！！！
+   66   1        
+   67   1        Actual = Kp * iError
+   68   1             + PID[KD] * ((0.8*iError + 0.2*sprt->LastError) - sprt->LastError);//只用PD
+   69   1        sprt->LastError = iError;   //更新上次误差
+   70   1      
+   71   1        //Actual += sprt->SumError*0.1;
+   72   1        //Actual = limit(Actual, 300); //限幅
+   73   1      
+   74   1        return Actual;
+   75   1      }
+   76          
+   77          //************************* 位置式PID控制*****（速度PID）*********************
+   78          /*
+   79          函数：int32 PID_Realize(PID *sptr, float *PID, int32 NowData, int32 Point)
+   80          功能：位置式PID控制
+   81          参数：
+   82          PID *sprt：      结构体指针
+   83          float *PID：     PID数组  （通过数组定义PID值）
+   84          int32 NowData  当前值  （可使用结构体定义变量）
+   85          int32 Point    设定目标值  （可使用结构体定义变量）
+   86          
+   87          说明：  该函数参考其他程序。
+   88          返回值： int32 Realize
+   89          eg：Tar_Ang_Vel.Y = PID_Realize(&Angle_PID, Angle, (int32)(Attitude_Angle.Y*100), (int32)Target_Angle.Y)
+             -;  // 结果为放大10倍的目标角速度 
+   90          日期： 2月1日
+   91          作者： 那个混子     */
+   92            ////////////
+   93          int32 PID_Realize(PID *sptr, float *PID, int32 NowData, int32 Point)
+   94          {
+   95   1        //当前误差，定义为寄存器变量，只能用于整型和字符型变量，提高运算速度
+   96   1        int32 iError; // 当前误差
+   97   1        float  Realize; // 最后得出的实际增量
+   98   1      
+   99   1        iError = Point - NowData; // 计算当前误差      设定减当前
+  100   1        sptr->SumError += PID[KI] * iError; // 误差积分
+  101   1        sptr->SumError = limit(sptr->SumError, PID[KT]);//积分限幅
+  102   1      
+  103   1        Realize = PID[KP] * iError
+  104   1            + sptr->SumError
+  105   1            + PID[KD] * (iError - sptr->LastError);     //P  I   D  相加
+  106   1        sptr->PrevError = sptr->LastError;  // 更新前次误差
+  107   1        sptr->LastError = iError;       // 更新上次误差
+  108   1        sptr->LastData  = NowData;      // 更新上次数据    没用 */
+  109   1      
+  110   1        return Realize; // 返回实际值
+  111   1      } 
+  112          
+  113          //-------------------------------------------------------------------------//
+  114          //************************增量式PID电机控制*********************
+  115          /*
+  116          函数：int32 PID_Increase(PID *sptr, float *PID, int32 NowData, int32 Point)
+  117          功能： 增量式PID电机控制
+  118          参数：
+  119          PID *sprt：      结构体指针
+  120          float *PID：     PID数组  （通过数组定义PID值）
+  121          int32 NowData    当前值  （可使用结构体定义变量）
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 3   
+
+  122          int32 Point      设定目标值  （可使用结构体定义变量）
+  123          
+  124          说明：  该函数参考其他程序。
+  125          返回值： int32 Increase
+  126          eg：Theory_Duty += PID_Increase(&Ang_Vel_PID, Ang_Vel, (int32)(GYRO_Real.Y*10), (int32)(Tar_Ang_Vel.Y));
+             -  // 计算直立PWM
+  127          日期： 2月1日
+  128          作者： 那个混子     */
+  129          int32 PID_Increase(PID *sptr, float *PID, int32 NowData, int32 Point)
+  130          {
+  131   1        //当前误差，定义为寄存器变量，只能用于整型和字符型变量，提高运算速度
+  132   1        int32 iError, //当前误差
+  133   1          Increase; //最后得出的实际增量
+  134   1      
+  135   1        iError = Point - NowData; // 计算当前误差
+  136   1      
+  137   1        Increase =  PID[KP] * (iError - sptr->LastError)
+  138   1              + PID[KI] * iError
+  139   1              + PID[KD] * (iError - 2 * sptr->LastError + sptr->PrevError);
+  140   1        
+  141   1        sptr->PrevError = sptr->LastError;  // 更新前次误差
+  142   1        sptr->LastError = iError;       // 更新上次误差
+  143   1        sptr->LastData  = NowData;      // 更新上次数据
+  144   1        
+  145   1        return Increase;  // 返回增量
+  146   1      }
+  147          
+  148          //*************************************************************************
+  149          /****************限幅****************
+  150          //x是限幅对象
+  151          //y是限幅范围
+  152          //有正负
+  153          
+  154          
+  155          */
+  156          int16 limit(int16 x, int y)
+  157          {
+  158   1          if(x>y)             return y;
+  159   1          else if(x<-y)       return -y;
+  160   1          else                return x;
+  161   1      }
+  162          
+  163           /******** 限幅保护 *********/
+  164          int32 range_protect(int32 duty, int32 min, int32 max)//限幅保护
+  165          {
+  166   1        if (duty >= max)
+  167   1        {
+  168   2          return max;
+  169   2        }
+  170   1        if (duty <= min)
+  171   1        {
+  172   2          return min;
+  173   2        }
+  174   1        else
+  175   1        {
+  176   2          return duty;
+  177   2        }
+  178   1      }
+  179          
+  180          /****************求绝对值********/
+  181          int  myabs(int dat)
+  182          {
+  183   1          if(dat>=0)  return dat;
+  184   1          else        return -dat;
+  185   1      }
+  186          
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 4   
+
+  187          /***********延时函数************/
+  188          void soft_delay(long t)
+  189          {  
+  190   1        int i;
+  191   1          while(t--)
+  192   1         for(i=1000;i>0;i--);
+  193   1      }
+  194          
+  195          /**********一阶低通滤波**********/
+  196          #define  a   0.1
+  197          /*
+  198          value 上次滤波后的值   
+  199          new_value 新的采样值 
+  200          out_value 本次输出
+  201          滤波系数越小，滤波结果越平稳，但是灵敏度越低。滤波系数越大，灵敏度越高
+             -，但是滤波结果越不稳定
+  202          */
+  203          int16  filter(int16 new_value,int16 value)
+  204          {
+  205   1        int16 out_value=0;
+  206   1        out_value = (1-a)*new_value+a*value ;
+  207   1      return   out_value;
+  208   1      }
+  209          /******************中心偏差滤波***********************
+  210          函数： float  Turn_Out_Filter(float turn_out)  
+  211          参数：  无
+  212          说明：  无
+  213          返回值：无
+  214          日期： 11月28日
+  215          最后修改时间：2019-4-19
+  216          作者：  那个混子     */    
+  217          int16  Turn_Out_Filter(float turn_out)        
+  218          {
+  219   1        int16 Turn_Out_Filtered;  
+  220   1        static float Pre1_Error[4]; 
+  221   1        Pre1_Error[3]=Pre1_Error[2];
+  222   1        Pre1_Error[2]=Pre1_Error[1];
+  223   1        Pre1_Error[1]=Pre1_Error[0];
+  224   1        Pre1_Error[0]=turn_out;
+  225   1        Turn_Out_Filtered=(int16)(Pre1_Error[0]*0.5+Pre1_Error[1]*0.3+Pre1_Error[2]*0.1+Pre1_Error[3]*0.1);
+  226   1        return Turn_Out_Filtered;
+  227   1      } 
+  228          /******************加权滤波***********************
+  229          函数： int16 Weights_Of_Filter(float Date,float value_1,float value_2,float value_3,float value_4)  
+  230          参数：  float Date  //要滤波的值   float value_1,float value_2,float value_3,float value_4//滤�
+             -�的权重
+  231          说明：  无
+  232          返回值：无
+  233          日期：2019-5-9
+  234          最后修改时间：2019-5-9
+  235          作者： 混子     */  
+  236          float Weights_Of_Filter(float Date,float value_1,float value_2,float value_3)
+  237          {
+  238   1       float Filter_Out;  
+  239   1        static float Error[4]; 
+  240   1        Error[3]=Error[2];
+  241   1        Error[2]=Error[1];
+  242   1        Error[1]=Error[0];
+  243   1        Error[0]=Date; 
+  244   1       Filter_Out=(Error[0]*value_1+Error[1]*value_2+Error[2]*value_3);
+  245   1        return Filter_Out;
+  246   1      }
+  247          
+  248          
+  249          /*****************差比和***********************
+  250          函数： float Cha_BI_He(float Date_1,float Date_2,float Date_3,int16 X)
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 5   
+
+  251          参数：  float Date_1--第一个数据  float Date_2--第二个数据 float Date_3第三个数据（分
+             -母） int16 X--所求结果放大的倍数
+  252          说明：  无
+  253          返回值：无
+  254          日期：2019-5-9
+  255          最后修改时间：2019-5-9
+  256          作者：  那个混子     */ 
+  257          float Cha_BI_He(float Date_1,float Date_2,float Date_3,int16 X)
+  258          {
+  259   1        int16 Cha=0;
+  260   1        float He=0;
+  261   1        float Resault;
+  262   1        Cha =  Date_1 - Date_2;   //差
+  263   1        He =   Date_1 + Date_2+Date_3;   //和
+  264   1        Resault = (Cha/He)*X ; //差比和
+  265   1        
+  266   1        return   Resault;
+  267   1      }
+  268          /*****************差比积***********************
+  269          函数： float Cha_BI_He_Sqrt(int16 date_1,int16 date_2,int16 x)
+  270          参数：  float date_1--第一个数据  float date_2--第二个数据  float x-所求结果放大的倍
+             -数
+  271          说明：  无
+  272          返回值：无
+  273          日期：2021-5-28
+  274          最后修改时间：2021-5-28
+  275          作者： 那个混子    */  
+  276          float Cha_BI_He_Sqrt(int16 date_1,int16 date_2,int16 x)
+  277          {
+  278   1        int16 cha=0;
+  279   1        float he=0;
+  280   1        float resault;
+  281   1        cha = date_1 - date_2;   //差
+  282   1        he =  (float) ((date_1 + date_2)*sqrt((date_1 + date_2)));   //和的1.5次方
+  283   1        resault = (cha/he)*x ; //差比和
+  284   1        
+  285   1        return   resault;
+  286   1      }
+  287          /*****************差比积***********************
+  288          函数： int16 Cubic_Function(int16 DATE,float A,float B)
+  289          参数：  int16 DATE--原始数据  float A--三次系数  float B-一次系数 
+  290          说明：  无
+  291          返回值：无
+  292          日期：2019-5-30
+  293          最后修改时间：2019-5-30
+  294          作者：  那个混子  */ 
+  295           int16 Cubic_Function(int16 DATE,float A,float B)
+  296          {
+  297   1        int16 Final_Date;
+  298   1        Final_Date = (DATE*DATE*DATE)*A+DATE*B;
+  299   1        return   Final_Date;
+  300   1      }
+  301          
+  302          ////////去除极值求平均
+  303          int16 I_Median_Average_Filter(int16 *DATE)
+  304          {
+  305   1          uint8 i;
+  306   1          int16 max,min;  //定义极值以及和
+  307   1          int16 sum = 0;
+  308   1      
+  309   1          max = DATE[0];
+  310   1          min = DATE[0];
+  311   1      
+  312   1          for(i=0;i<sizeof(DATE);i++)
+  313   1          {
+  314   2              if(max<DATE[i])max = DATE[i];
+C251 COMPILER V5.60.0,  Function                                                           10/04/23  08:48:15  PAGE 6   
+
+  315   2              if(min>DATE[i])min = DATE[i];
+  316   2              sum += DATE[i];
+  317   2          }
+  318   1      
+  319   1          sum =(sum-max-min)/(sizeof(DATE)-2);    //>>3
+  320   1          return sum;
+  321   1      }
+  322          
+  323          
+*** WARNING C182 IN LINE 32 OF ..\CODE\Function.c: 'F14x16': unknown size, assumed to be 'extern'
+*** WARNING C183 IN LINE 205 OF ..\CODE\Function.c: dead assignment eliminated
+*** WARNING C183 IN LINE 259 OF ..\CODE\Function.c: dead assignment eliminated
+*** WARNING C183 IN LINE 260 OF ..\CODE\Function.c: dead assignment eliminated
+*** WARNING C183 IN LINE 278 OF ..\CODE\Function.c: dead assignment eliminated
+*** WARNING C183 IN LINE 279 OF ..\CODE\Function.c: dead assignment eliminated
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      1184     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =       177         58
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       113     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  6 WARNING(S),  0 ERROR(S)
